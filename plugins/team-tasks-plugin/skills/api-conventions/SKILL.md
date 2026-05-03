@@ -42,7 +42,10 @@ export async function GET() {
   } = await supabase.auth.getUser()
 
   if (!user) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+    return NextResponse.json(
+      { code: "unauthorized", message: "로그인이 필요합니다." },
+      { status: 401 },
+    )
   }
   // 이후 비즈니스 로직
 }
@@ -57,9 +60,22 @@ export async function GET() {
 | 성공 (조회·수정) | `NextResponse.json(data)` — 데이터를 그대로 (래핑 없음) |
 | 생성 성공 | `NextResponse.json(data, { status: 201 })` |
 | 빈 응답 (DELETE 등) | `new Response(null, { status: 204 })` |
-| 에러 | `NextResponse.json({ error: "<keyword>" }, { status })` |
+| 에러 | `NextResponse.json({ code: "<keyword>", message: "<설명>" }, { status })` |
 
-에러 메시지는 짧은 영문 키워드(`unauthorized`, `not_found`, `title_required`) 또는 Supabase `error.message`. 스택·내부 path 노출 금지.
+**에러 응답은 항상 `{ code, message }` 구조** — 두 필드 모두 필수. 단일 필드(`{ error: "..." }`)·문자열·HTML 반환 금지.
+
+- `code` — 짧은 영문 스네이크 키워드. 클라이언트가 분기 판단에 쓴다 (`unauthorized`, `not_found`, `title_required`, `forbidden`, `internal_error`). 안정적인 식별자라 임의로 바꾸지 않는다.
+- `message` — 사람이 읽는 한 줄 설명. 영문 또는 한글. 사용자에게 바로 노출 가능한 톤. 스택·SQL·내부 path·env 값 절대 포함 금지. Supabase `error.message` 를 그대로 흘리지 말고, 외부 노출용 문구로 한 번 매핑한다.
+
+```ts
+// 예시
+return NextResponse.json(
+  { code: "title_required", message: "제목을 입력해 주세요." },
+  { status: 400 },
+)
+```
+
+기존 `{ error: "..." }` 형태의 라우트가 남아 있으면 수정·리뷰 시 `{ code, message }` 로 변환한다.
 
 ## HTTP 상태 코드
 
@@ -87,7 +103,10 @@ const { title, status } = (await request.json()) as {
   status?: unknown
 }
 if (typeof title !== "string" || !title.trim()) {
-  return NextResponse.json({ error: "title_required" }, { status: 400 })
+  return NextResponse.json(
+    { code: "title_required", message: "제목을 입력해 주세요." },
+    { status: 400 },
+  )
 }
 
 const insert = {
@@ -137,7 +156,12 @@ let query = supabase
 if (cursor) query = query.lt("created_at", cursor)
 
 const { data, error } = await query
-if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+if (error) {
+  return NextResponse.json(
+    { code: "internal_error", message: "데이터를 불러오지 못했습니다." },
+    { status: 500 },
+  )
+}
 
 const nextCursor = data.length === limit ? data[data.length - 1].created_at : null
 return NextResponse.json({ data, nextCursor })
@@ -168,5 +192,6 @@ offset 페이지네이션은 큰 데이터셋에서 성능 함정 → 지양.
 | `created_by` 를 클라이언트가 지정 | 위변조 가능 | 서버에서 `user.id` 강제 |
 | 인증 가드를 헬퍼·middleware 로 일찍 추상화 | 라우트 1~2개일 때 과한 추상 | 인라인, 5+ 시점에 재검토 |
 | `eq("created_by", user.id)` 중복 추가 | RLS 가 이미 처리, 중복은 노이즈 | RLS 신뢰 |
-| `error: err.stack` 노출 | 내부 구조 leak | `error.message` 또는 키워드 |
+| `error: err.stack` 노출 | 내부 구조 leak | `{ code, message }` 로 매핑, 스택 제거 |
+| `{ error: "..." }` 단일 필드 응답 | 표준 구조 위반, 클라이언트 분기 불안정 | `{ code, message }` 두 필드 모두 포함 |
 | offset 페이지네이션 (`range()`) 으로 큰 데이터 순회 | 깊은 offset 성능 저하 | cursor 기반 |
