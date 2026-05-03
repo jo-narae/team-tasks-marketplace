@@ -1,5 +1,6 @@
 {
   "name": "team-tasks-plugin",
+  "version": "1.0.0",
   "description": "사내 일감 할당 앱 자동화 자산 묶음",
   "author": {
     "name": "jo-narae"
