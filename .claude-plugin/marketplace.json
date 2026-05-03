@@ -1,0 +1,14 @@
+{
+  "name": "team-tasks",
+  "owner": {
+    "name": "jo-narae",
+    "email": "nare6004@gmail.com"
+  },
+  "plugins": [
+    {
+      "name": "team-tasks-plugin",
+      "source": "./plugins/team-tasks-plugin",
+      "description": "사내 일감 할당 앱 자동화 자산 묶음"
+    }
+  ]
+}
